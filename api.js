@@ -1,0 +1,117 @@
+const express = require('express');
+const mysql = require('mysql2');
+const cors = require('cors');
+const axios = require('axios');
+const { Sequelize, DataTypes } = require('sequelize');
+
+const app = express();
+
+app.use(cors());
+app.use(express.json());
+
+const sequelize = new Sequelize('edge_chajian', 'hxc', '123456', {
+  host: '8.141.2.17',
+  port: 3306,
+  dialect: 'mysql'
+});
+
+// 定义模型
+const MoehuPic = sequelize.define('moehu_pic', {
+  src: {
+    type: DataTypes.STRING,
+    allowNull: false    // 非空约束
+  },
+  type: {
+    type: DataTypes.STRING,
+    allowNull: false
+  }
+}, {
+  tableName: 'moehu_pic',
+  timestamps: false
+});
+
+// 模型映射
+const models = {
+  moehu_pic: MoehuPic
+  // 可以在这里添加更多的模型
+};
+
+// 通过外部API获取图片，并存入数据库
+app.get('/fetch-image', async function (req, res) {
+  const imageUrl = 'https://img.moehu.org/pic.php?id=img1&size&return=json&num=50';
+
+  try {
+    // 获取图片URL
+    const response = await axios.get(imageUrl);
+    const data = response.data;
+
+    if (data.code !== '200') {
+      return res.status(500).json({ msg: 'Failed to fetch images' });
+    }
+
+    const pic = data.pic;
+
+    for (const url of pic) {
+      // 将图片URL存入数据库
+      await MoehuPic.create({ src: url, type: 'img1' });
+    }
+
+    res.json({ msg: 'Image URLs saved successfully' });
+  } catch (error) {
+    console.error('Error fetching image URLs:', error);
+    res.status(500).json({ msg: error.message });
+  }
+});
+
+// 获取图片数据
+app.get('/images', async function (req, res) {
+  const type = req.query.type;
+  const page = parseInt(req.query.page) || 1; // 默认第一页
+  const size = parseInt(req.query.size) || 10; // 默认每页10条数据
+  const src = req.query.src;
+
+  if (!src) {
+    return res.status(400).json({ msg: 'Src parameter is required' });
+  }
+
+  if (!type) {
+    return res.status(400).json({ msg: 'Type parameter is required' });
+  }
+
+  const Model = models[src];
+  if (!Model) {
+    return res.status(400).json({ msg: 'Invalid src parameter' });
+  }
+
+  const offset = (page - 1) * size;
+
+  try {
+    // 获取图片数据
+    const rows = await Model.findAll({
+      where: { type },
+      limit: size,
+      offset: offset
+    });
+
+    res.json(rows);
+  } catch (error) {
+    console.error('Error fetching images:', error);
+    res.status(500).json({ msg: error.message });
+  }
+});
+
+const server = app.listen(8080, 'localhost', function () {
+  const host = server.address().address;
+  const port = server.address().port;
+  console.log("Running server at http://%s:%s", host, port);
+});
+
+// 验证数据库连接
+sequelize.authenticate()
+  .then(() => {
+    console.log('Connection has been established successfully.');
+  })
+  .catch(err => {
+    console.error('Unable to connect to the database:', err);
+    process.exit(1);
+  });
