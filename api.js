@@ -30,15 +30,47 @@ const MoehuPic = sequelize.define('moehu_pic', {
   timestamps: false
 });
 
+// 定义模型
+const CatPic = sequelize.define('cat_pic', {
+  src: {
+    type: DataTypes.STRING,
+    allowNull: false    // 非空约束
+  },
+  type: {
+    type: DataTypes.STRING,
+    allowNull: false
+  }
+}, {
+  tableName: 'cat_pic',
+  timestamps: false
+});
+
+// 定义DogPic模型
+const DogPic = sequelize.define('dog_pic', {
+  src: {
+    type: DataTypes.STRING,
+    allowNull: false
+  },
+  type: {
+    type: DataTypes.STRING,
+    allowNull: false
+  }
+}, {
+  tableName: 'dog_pic',
+  timestamps: false
+});
+
 // 模型映射
 const models = {
-  moehu_pic: MoehuPic
+  moehu_pic: MoehuPic,
+  cat_pic: CatPic,
+  dog_pic: DogPic
   // 可以在这里添加更多的模型
 };
 
 // 通过外部API获取图片，并存入数据库
 app.get('/fetch-image', async function (req, res) {
-  const imageUrl = 'https://img.moehu.org/pic.php?id=img1&size&return=json&num=50';
+  const imageUrl = 'https://img.moehu.org/pic.php?id=katoumegumi&size&return=json&num=10';
 
   try {
     // 获取图片URL
@@ -53,12 +85,63 @@ app.get('/fetch-image', async function (req, res) {
 
     for (const url of pic) {
       // 将图片URL存入数据库
-      await MoehuPic.create({ src: url, type: 'img1' });
+      await MoehuPic.create({ src: url, type: 'katoumegumi' });
     }
 
     res.json({ msg: 'Image URLs saved successfully' });
   } catch (error) {
     console.error('Error fetching image URLs:', error);
+    res.status(500).json({ msg: error.message });
+  }
+});
+
+// API路由处理
+app.get('/fetch-image2', async function (req, res) {
+  const imageUrl = 'https://api.thecatapi.com/v1/images/search'; // 假设这是你新的API URL
+
+  try {
+    // 获取图片URL
+    const response = await axios.get(imageUrl);
+    const data = response.data;
+
+    // 检查响应数据是否符合预期
+    if (!Array.isArray(data) || data.length === 0) {
+      return res.status(500).json({ msg: 'Failed to fetch images' });
+    }
+
+    // 遍历每个图片对象
+    for (const item of data) {
+      // 将图片URL存入数据库
+      await CatPic.create({ src: item.url, type: 'cat' });
+    }
+
+    res.json({ msg: 'Image URLs saved successfully' });
+  } catch (error) {
+    console.error('Error fetching image URLs:', error);
+    res.status(500).json({ msg: error.message });
+  }
+});
+
+// 获取狗狗图片API
+app.get('/fetch-image3', async function (req, res) {
+  const imageUrl = 'https://dog.ceo/api/breeds/image/random';
+
+  try {
+    // 获取图片URL
+    const response = await axios.get(imageUrl);
+    const data = response.data;
+
+    // 检查响应数据是否符合预期
+    if (data.status !== 'success') {
+      return res.status(500).json({ msg: 'Failed to fetch dog image' });
+    }
+
+    // 将图片URL存入数据库
+    await DogPic.create({ src: data.message, type: 'dog' });
+
+    res.json({ msg: 'Dog image URL saved successfully' });
+  } catch (error) {
+    console.error('Error fetching dog image:', error);
     res.status(500).json({ msg: error.message });
   }
 });
