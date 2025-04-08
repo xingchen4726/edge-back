@@ -100,6 +100,64 @@ app.get('/images', async function (req, res) {
   }
 });
 
+// 添加历史记录
+app.post('/api/history', async function (req, res) {
+  const { src } = req.body;
+
+  if (!src) {
+    return res.status(400).json({ msg: 'Src parameter is required' });
+  }
+
+  try {
+    // 检查图片是否已经存在
+    const [existing] = await sequelize.query('SELECT * FROM history WHERE src = ?', {
+      replacements: [src]
+    });
+
+    if (existing.length > 0) {
+      return res.status(200).json({ msg: 'Image already exists in history' });
+    }
+
+    // 如果不存在，则插入新记录
+    await sequelize.query('INSERT INTO history (src) VALUES (?)', {
+      replacements: [src]
+    });
+
+    res.status(201).json({ msg: 'History added successfully' });
+  } catch (error) {
+    console.error('Error adding history:', error);
+    res.status(500).json({ msg: error.message });
+  }
+});
+
+// 获取历史记录
+app.get('/api/history', async function (req, res) {
+  const page = parseInt(req.query.page) || 1; // 默认第一页
+  const size = parseInt(req.query.size) || 10; // 默认每页10条数据
+  const offset = (page - 1) * size;
+
+  try {
+    // 获取总记录数
+    const [countResult] = await sequelize.query('SELECT COUNT(*) AS total FROM history');
+    const total = countResult[0].total;
+
+    // 获取分页数据
+    const [rows] = await sequelize.query('SELECT * FROM history ORDER BY timestamp DESC LIMIT ? OFFSET ?', {
+      replacements: [size, offset]
+    });
+
+    res.json({
+      total, // 总记录数
+      page,  // 当前页码
+      size,  // 每页记录数
+      data: rows // 当前页的数据
+    });
+  } catch (error) {
+    console.error('Error fetching history:', error);
+    res.status(500).json({ msg: error.message });
+  }
+});
+
 const server = app.listen(8080, 'localhost', function () {
   const host = server.address().address;
   const port = server.address().port;
